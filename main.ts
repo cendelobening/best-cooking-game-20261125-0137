@@ -6,7 +6,7 @@
 // Outside the grader, MAKEFUN_OUTPUT_DIR stands in for /output:
 //   mkdir -p out && MAKEFUN_OUTPUT_DIR=out node main.ts
 
-import { cpSync, existsSync, mkdirSync, readdirSync, statSync, writeFileSync } from 'node:fs';
+import { chmodSync, cpSync, existsSync, mkdirSync, readdirSync, statSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { buildDossier } from './vendor/makefun-game.ts';
@@ -57,3 +57,17 @@ const dossierPath = join(out, 'dossier.json');
 if (!existsSync(dossierPath) || statSync(dossierPath).size === 0) {
   throw new Error('hand-in failed: dossier.json was not written');
 }
+
+// The scorer may read /output as a different user, so every file it holds
+// must be world-readable regardless of this machine's umask (007 here makes
+// Node's cpSync/writeFileSync land at 0660). Walk the whole tree and force
+// files to 0644 and directories to 0755; chmod changes no file content.
+function chmodTree(dir) {
+  chmodSync(dir, 0o755);
+  for (const entry of readdirSync(dir)) {
+    const p = join(dir, entry);
+    if (statSync(p).isDirectory()) chmodTree(p);
+    else chmodSync(p, 0o644);
+  }
+}
+chmodTree(out);
